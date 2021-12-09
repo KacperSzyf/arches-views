@@ -10,24 +10,20 @@ from arches.app.models.tile import Tile
 #isresource is False, resource = model
 
 def dashboard_data(request):
+
     model_array = []
-    branches_array = []
     total_model_resources = 0
 
     resources = Resource.objects.exclude()
     graphs = Graph.objects.exclude(graphid = settings.SYSTEM_SETTINGS_RESOURCE_MODEL_ID)
 
     for gr in graphs.exclude(isresource = False):
-        model = {}
-        model['modelName'] = gr.name
-        model['totalResources'] = len(resources.filter(graph = gr))
-        total_model_resources+=model['totalResources']
-        model_array.append(model)
+        total_model_resources+=len(resources.filter(graph = gr))
+        model_array.append(dict(modelName = gr.name, totalResources = len(resources.filter(graph = gr))))
     
-    for gr in graphs.exclude(isresource = True):
-        branch = {}
-        branch['branchName'] = gr.name
-        branches_array.append(branch)
+    branches_array = [dict(branchName = gr.name) for gr in graphs.exclude(isresource = True)]
+
+    print(type(graphs))
     
     metaData = {'totalResources' : total_model_resources,
     'totalModels' : len(model_array),
@@ -37,7 +33,7 @@ def dashboard_data(request):
         {
         'metaData' : metaData,
         'modelCounts': model_array,
-        'branchCounts': branches_array  
+        'branches': branches_array  
         },
       json_dumps_params = {'indent' : 2}
       )
