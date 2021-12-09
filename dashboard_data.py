@@ -25,16 +25,16 @@ def dashboard_data(request):
     #Gather data for each model
     for gr in graphs.exclude(isresource = False):
         total_model_resources+=resources.filter(graph = gr).count()
-        model_array.append(dict(modelName = gr.name, numberOfResources = len(resources.filter(graph = gr))))
+        model_array.append(dict(name = gr.name, count = len(resources.filter(graph = gr))))
     
     #Gather data for each branch
-    branches_array = [dict(branchName = gr.name) for gr in graphs.exclude(isresource = True)]
+    branches_array = [dict(name = gr.name) for gr in graphs.exclude(isresource = True)]
 
     #Get nodetypes
     nodetype_values = Concept.objects.values_list('nodetype', flat = True).distinct()
     
     #Gather concepts 
-    concept_array = [dict(conceptName = nodetype, conceptCount = concepts.filter(nodetype = nodetype).count()) for nodetype in nodetype_values]
+    concept_array = [dict(type = nodetype, count = concepts.filter(nodetype = nodetype).count()) for nodetype in nodetype_values]
 
     #Create metadata dictionary 
     metaData = {
@@ -46,7 +46,7 @@ def dashboard_data(request):
     #Create return dicitonary
     response = {
         'metaData' : metaData,
-        'modelCounts': model_array,
+        'resourceModels': model_array,
         'branches': branches_array ,
         'referenceData' : concept_array
         }
