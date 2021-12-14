@@ -6,7 +6,7 @@
  
 2. Add the `ciimchanges.py` file to your views folder
 
-3. Add `LatestResourceEdit` to `arches/app/models/models.py` just under `EditLog`:
+3. Add `LatestResourceEdit` model to `arches/app/models/models.py` just under `EditLog`:
     ```
     class LatestResourceEdit(models.Model):
       editlogid = models.UUIDField(primary_key=True, default=uuid.uuid1)
