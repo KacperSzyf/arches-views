@@ -1,7 +1,9 @@
 # Installation 
 
 1. In `urls.py` add the following url:
-  `url(r"^resource/changes", ChangesView.as_view(), name="ChangesView"),`
+  At the top of `urls.py` add `from .views.ciimchanges import ChangesView`
+  
+  and in `urlpatterns` add `url(r"^resource/changes", ChangesView.as_view(), name="ChangesView"),`
  
 2. Add the `ciimchanges.py` file to your views folder
 
