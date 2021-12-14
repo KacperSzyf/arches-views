@@ -1,4 +1,5 @@
 #Imports
+from functools import wraps
 import math
 from datetime import datetime
 from time import time
@@ -12,6 +13,23 @@ from arches.app.utils.betterJSONSerializer import JSONSerializer
 from arches.app.models.resource import Resource
 from arches.app.models.models import LatestResourceEdit
 
+#Decorators
+def timer(func):
+    '''
+    Description:
+    Times how long a function takes to execute
+
+    Returns:
+    :tuple: Returns a tuple with the results of a function and the time taken to perform as last element ([-1])
+    '''
+    @wraps(func)
+    def wrap(*args, **kwargs):
+        time_start = time()
+        result = (func(*args, **kwargs))
+        total_time = (time() - time_start,) #Comma at the end makes the result a tuple
+        return result + total_time #Concatinating a tuple 
+    return wrap  
+
 class ChangesView(View):
 
     def get(self, request):
@@ -19,6 +37,7 @@ class ChangesView(View):
         start_time = time()
 
         #Functions
+        @timer
         def get_data(from_date, to_date, per_page, page):
             '''
             Get all edited resources from selected page
@@ -37,10 +56,13 @@ class ChangesView(View):
             resourceinstanceids = resource_ids[(page-1)*per_page:page*per_page]
 
             return (resourceinstanceids, total_resources, no_pages)
-
+       
+        @timer
         def download_data(resourceinstanceids):
             '''
             Get all data as json
+            Returns:
+            :tuple: Returns all json data in a d tuple 
             '''
             #Remove settings changes
             if settings.SYSTEM_SETTINGS_RESOURCE_ID in resourceinstanceids:
@@ -63,7 +85,7 @@ class ChangesView(View):
                     data.append({'resourceinstance_id':resourceid, 'tiles':None})
 
 
-            return data            
+            return (data,)      
 
         #Process input
         #Dates
@@ -77,22 +99,18 @@ class ChangesView(View):
         page = int(request.GET.get('page'))
 
         #Data
-        db_time_start = time()
         db_data = get_data(from_date, to_date, per_page, page)
-        db_time_end = time()
 
-        json_data_time_start = time()
         json_data = download_data(db_data[0])
-        json_data_time_end = time()
 
         end_time = time()
         
         #Dictionaries
 
         time_elapsed = {
-            'total' : end_time - start_time,
-            'dbQuery': db_time_end - db_time_start,
-            'dataDownload': json_data_time_end - json_data_time_start 
+            'total' : db_data[-1]  + json_data[-1],
+            'dbQuery': db_data[-1],
+            'dataDownload': json_data[-1]
             }
 
         metadata = {
@@ -105,7 +123,7 @@ class ChangesView(View):
             'timeElapsed': time_elapsed
         }
 
-        response = {'metadata': metadata, 'results':json_data}
+        response = {'metadata': metadata, 'results':json_data[0]}
 
 
         return JsonResponse(response, json_dumps_params={'indent': 2})
