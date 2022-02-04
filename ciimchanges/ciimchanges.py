@@ -2,16 +2,21 @@
 from functools import wraps
 import math
 from datetime import datetime
-from time import time
+from time import perf_counter, time
+from venv import create
 
 from django.views.generic import View
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 
 from arches.app.models.system_settings import settings
 from arches.app.utils.betterJSONSerializer import JSONSerializer
 
 from arches.app.models.resource import Resource
 from arches.app.models.models import LatestResourceEdit
+
+from arches.app.models.models import Concept as modelConcept
+from arches.app.models.concept import Concept
+from arches.app.utils.skos import SKOSWriter, SKOSReader
 
 #Decorators
 def timer(func):
@@ -45,44 +50,52 @@ class ChangesView(View):
             Returns:
             :tuple: Where [0] contains all ID's, [1] total of all ID's, [2] number of pages
             '''
-            #Get all edits within time range
-            edits = LatestResourceEdit.objects.filter(timestamp__range=(from_date, to_date)).order_by('timestamp')
+            #Get all edits within time range and exclude system settings changes
+            edits_queryset = LatestResourceEdit.objects.filter(timestamp__range=(from_date, to_date)).order_by('timestamp').exclude(resourceinstanceid=settings.SYSTEM_SETTINGS_RESOURCE_ID)
 
-            #Get all resrouce id's in edits
-            resource_ids = [edit.resourceinstanceid for edit in edits]
-            total_resources = len(resource_ids)
+            total_resources = len(edits_queryset)
             #Paginate results
             no_pages = math.ceil(total_resources/per_page)
-            resourceinstanceids = resource_ids[(page-1)*per_page:page*per_page]
+            edits = edits_queryset[(page-1)*per_page:page*per_page]
 
-            return (resourceinstanceids, total_resources, no_pages)
+            return (edits, total_resources, no_pages, edits_queryset)
        
         @timer
-        def download_data(resourceinstanceids):
+        def download_data(edits, edits_queryset):
             '''
             Get all data as json
             Returns:
             :tuple: Returns all json data in a d tuple 
             '''
-            #Remove settings changes
-            if settings.SYSTEM_SETTINGS_RESOURCE_ID in resourceinstanceids:
-                resourceinstanceids.remove(settings.SYSTEM_SETTINGS_RESOURCE_ID)
-
             data = []
-            
-            for resourceid in resourceinstanceids:
+    
+            count = 0
+            for edit in edits:
+                resourceid=edit.resourceinstanceid
                 if Resource.objects.filter(pk=resourceid).exists():
                     resource = Resource.objects.get(pk=resourceid)
                     resource.load_tiles()
-
                     if not(len(resource.tiles) == 1 and not resource.tiles[0].data):
-                        resource_json = JSONSerializer().serializeToPython(resource)
+                        #Check if the edit source is not of type 'create'
+                        if edit.edittype != 'create':
+                            #If not add the currents edits time stamp to modified
+                            resource_json= {'modified':edit.timestamp.strftime('%d-%m-%YT%H:%M:%SZ')}
+                            #and fetch the log of when the record was created
+                            create_event = edits_queryset.get(resourceinstanceid = resourceid, edittype = 'create')
+                            #append the the created time to log
+                            resource_json['created'] = create_event.timestamp.strftime('%d-%m-%YT%H:%M:%SZ')
+                        else:
+                            #if it is of type create set modified and created to the same value
+                            resource_json= {'modified':edit.timestamp.strftime('%d-%m-%YT%H:%M:%SZ')}
+                            resource_json['created'] = edit.timestamp.strftime('%d-%m-%YT%H:%M:%SZ')
+
+                        resource_json.update(JSONSerializer().serializeToPython(resource))
                         if resource_json['displaydescription'] == '<Description>': resource_json['displaydescription'] = None
                         if resource_json['map_popup'] == '<Name_Type>': resource_json['map_popup'] = None
                         if resource_json['displayname'] == '<NMRW_Name>' : resource_json['displayname'] = None
                         data.append(resource_json)
                 else:
-                    data.append({'resourceinstance_id':resourceid, 'tiles':None})
+                    data.append({'modified':edit.timestamp,'resourceinstance_id':resourceid, 'tiles':None})
 
 
             return (data,)      
@@ -99,9 +112,10 @@ class ChangesView(View):
         page = int(request.GET.get('page'))
 
         #Data
+        #db_data[x] =     0         1               2           3
+        #               edits, total_resources, no_pages, edits_queryset
         db_data = get_data(from_date, to_date, per_page, page)
-
-        json_data = download_data(db_data[0])
+        json_data = download_data(db_data[0], db_data[3])
 
         end_time = time()
         
@@ -125,5 +139,20 @@ class ChangesView(View):
 
         response = {'metadata': metadata, 'results':json_data[0]}
 
-
         return JsonResponse(response, json_dumps_params={'indent': 2})
+
+# download and append all xml thesauri
+class ConceptsExportView(View):
+    def get(self, request):
+        conceptids = [str(c.conceptid) for c in modelConcept.objects.filter(nodetype='ConceptScheme')]
+        concept_graphs = []
+        for conceptid in conceptids:
+            print(conceptid)
+            concept_graphs.append(Concept().get(
+                id=conceptid,
+                include_subconcepts=True,
+                include_parentconcepts=False,
+                include_relatedconcepts=True,
+                depth_limit=None,
+                up_depth_limit=None))
+        return HttpResponse(SKOSWriter().write(concept_graphs, format="pretty-xml"), content_type="application/xml")
