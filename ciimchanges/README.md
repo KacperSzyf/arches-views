@@ -8,13 +8,13 @@
 
 3. Add `LatestResourceEdit` model to `arches/app/models/models.py` just under `EditLog`:
     ```
-  class LatestResourceEdit(models.Model):
-    editlogid = models.UUIDField(primary_key=True, default=uuid.uuid1)
-    username = models.TextField(blank=True, null=True)
-    resourcedisplayname = models.TextField(blank=True, null=True)
-    resourceinstanceid = models.TextField(blank=True, null=True)
-    edittype = models.TextField(blank=True, null=True)
-    timestamp = models.DateTimeField(blank=True, null=True)
+    class LatestResourceEdit(models.Model):
+      editlogid = models.UUIDField(primary_key=True, default=uuid.uuid1)
+      username = models.TextField(blank=True, null=True)
+      resourcedisplayname = models.TextField(blank=True, null=True)
+      resourceinstanceid = models.TextField(blank=True, null=True)
+      edittype = models.TextField(blank=True, null=True)
+      timestamp = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         managed = True
